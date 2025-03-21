@@ -1,0 +1,10 @@
+export PATH=$PATH:$HOME/.zokrates/bin     
+zokrates compile -i network.zok --debug
+zokrates setup
+zokrates compute-witness -a 0 1 1 2 2 0 3 4 4 3 2 2 2 4 4 0 9 1
+zokrates generate-proof
+zokrates export-verifier
+zokrates verify
+
+time zokrates generate-proof
+time zokrates verify

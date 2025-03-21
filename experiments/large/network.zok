@@ -1,0 +1,107 @@
+import "hashes/sha256/512bitPacked" as sha256packed;
+
+const u32 BID_SIZE = 50;
+const u32 TOKEN_SIZE = 10;
+const u32 SOLUTION_SIZE = 12;
+const u32 OBJECTIVE_SIZE = 2;
+const u32 BID_SIZE_PLUS = BID_SIZE + 1;
+
+const field WEIGHT = 1;
+const u32 NULL = 999999;
+const u32 BUDGET = 1000;
+const field ZERO = 1000;
+const field INFINITY = 999999;
+
+def main(private u32[BID_SIZE][2] mut bids, private u32[BID_SIZE_PLUS] costs, private u32[OBJECTIVE_SIZE] utilities) {
+	u32[SOLUTION_SIZE][TOKEN_SIZE] mut cycles = [[NULL; TOKEN_SIZE]; SOLUTION_SIZE];
+	u32 mut solution_counter = 0;
+
+	/* BELLMAN-FORD ALGORITHM OVER BID NETWORK */
+	for u32 start_node in 0..TOKEN_SIZE {
+		field[TOKEN_SIZE] mut distances = [INFINITY; TOKEN_SIZE];
+		u32[TOKEN_SIZE] mut predecessors = [NULL; TOKEN_SIZE];
+		u32[TOKEN_SIZE] mut bid_indices = [NULL; TOKEN_SIZE];
+
+		distances[start_node] = ZERO;
+		for u32 i in 0..TOKEN_SIZE-1 {
+			for u32 j in 0..BID_SIZE {
+				u32 u = bids[j][0];
+				u32 v = bids[j][1];
+
+				bool is_shorter = ( distances[u] - WEIGHT < distances[v] );
+				predecessors[v] = if ( is_shorter ) { u } else { predecessors[v] } ; 
+   				bid_indices[v] = if ( is_shorter ) { j } else { bid_indices[v] } ; 
+   				distances[v] = if ( is_shorter ) { distances[u] - WEIGHT } else { distances[v] } ;
+			}
+		}
+
+		for u32 j in 0..BID_SIZE {
+			u32 u = bids[j][0];
+			u32 v = bids[j][1];
+			u32 mut current = v;
+			u32 mut cycle_counter = 0;
+			u32[TOKEN_SIZE] mut cycle = [NULL; TOKEN_SIZE]; 
+			bool[TOKEN_SIZE] mut visited = [false; TOKEN_SIZE]; 
+
+			bool is_found = ( distances[u] - WEIGHT < distances[v] ); 
+
+			for u32 i in 0..TOKEN_SIZE {
+				bool is_not_visited = ( is_found && visited[current] == false);
+				cycle[cycle_counter] = if ( is_not_visited ) { bid_indices[current] } else { cycle[cycle_counter] };
+				cycle_counter = if ( is_not_visited ) { cycle_counter + 1 } else { cycle_counter };
+				visited[current] = if ( is_not_visited ) { true } else { visited[current] };
+				current = if ( is_not_visited ) { predecessors[current] } else { current }; 
+			}
+			cycles[solution_counter] = if ( is_found ) { cycle } else { cycles[solution_counter] };
+			solution_counter = if ( is_found && solution_counter < SOLUTION_SIZE - 1 ) { solution_counter + 1 } else { solution_counter };
+		}
+		log("{}", cycles);
+	}
+
+	/* EVALUATION OF FIRST OBJECTIVE (i.e. NUMBER OF BIDS MAXIMIZED) */
+	u32[SOLUTION_SIZE] mut objective1 = [0; SOLUTION_SIZE];
+	for u32 i in 0..SOLUTION_SIZE {
+		for u32 j in 0..TOKEN_SIZE {
+			objective1[i] = if ( cycles[i][j] != NULL ) { objective1[i] + 1 } else { objective1[i] };
+		}
+	}
+	log("Objective #1: {}", objective1);
+
+	/* EVALUATION OF SECOND OBJECTIVE (i.e. TOTAL COST MINIMIZED) */
+	u32[SOLUTION_SIZE] mut objective2 = [0; SOLUTION_SIZE];
+	for u32 i in 0..SOLUTION_SIZE {
+		for u32 j in 0..TOKEN_SIZE {
+			cycles[i][j] = if ( cycles[i][j] == NULL ) { BID_SIZE } else { cycles[i][j] };
+			objective2[i] = objective2[i] + costs[cycles[i][j]];
+			cycles[i][j] = if ( cycles[i][j] == BID_SIZE ) { NULL } else { cycles[i][j] };
+		}
+		objective2[i] = BUDGET - objective2[i];
+	}
+	log("Objective #2: {}", objective2);
+
+	/* NON-DOMINATED SORTING OF SOLUTIONS */
+	bool[SOLUTION_SIZE] mut is_non_dominated = [true; SOLUTION_SIZE];
+	for u32 i in 0..SOLUTION_SIZE { 
+		for u32 j in 0..SOLUTION_SIZE { 
+			bool is_dominated1 = (objective1[j] >= objective1[i] && objective2[j] > objective2[i]);
+			bool is_dominated2 = (objective1[j] > objective1[i] && objective2[j] >= objective2[i]);
+
+			is_non_dominated[i] = if ( is_dominated1 || is_dominated2 ) { false } else { is_non_dominated[i] }; 
+		}
+	}
+	log("Is Non-Dominated: {}", is_non_dominated);
+
+	/* UTILITY FUNCTION-BASED DECISION MAKING */
+	u32 mut best_value = 0;
+	u32 mut best_index = 0;
+	for u32 i in 0..SOLUTION_SIZE { 
+		u32 mut current_value = utilities[0] * objective1[i] + utilities[1] * objective2[i];
+		bool mut is_better = (is_non_dominated[i] && current_value > best_value);
+		
+		best_index = if ( is_better ) { i } else { best_index };
+		best_value = if ( is_better ) { current_value } else { best_value };	
+	}
+	log("Best Index: {}, Best Value: {}, Best Cycle: {}", best_index, best_value, cycles[best_index]);
+
+	return;
+}

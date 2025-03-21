@@ -1,0 +1,10 @@
+SMALL:
+
+BID_SIZE = 10;
+TOKEN_SIZE = 10;
+SOLUTION_SIZE = 5;
+
+zokrates compute-witness -a 0 1 1 2 2 3 3 0 4 5 5 6 6 4 7 9 7 8 7 5 2 2 2 2 5 5 5 3 3 3 0 1 1
+
+TRANSACTIONS:
+0xe65cb79bb3d476844d2cb7d0f058271c56dfa4cf0d334c8b20976ca62fbd1496
